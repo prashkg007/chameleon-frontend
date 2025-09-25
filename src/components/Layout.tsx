@@ -12,6 +12,15 @@ function generateCodeVerifier(): string {
     .replace(/=/g, '');
 }
 
+function generateSecureRandom(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode.apply(null, Array.from(array)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
 async function generateCodeChallenge(verifier: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
@@ -26,41 +35,63 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 	const [isLoggedIn, setIsLoggedIn] = useState(false);
 
 	useEffect(() => {
-		// Check login status on mount and when localStorage changes
-		const checkLoginStatus = () => {
-			setIsLoggedIn(!!localStorage.getItem('accessToken'));
+		// Check login status via backend (cookies)
+		const checkLoginStatus = async () => {
+			try {
+				const response = await fetch(`${config.apiBaseUrl}/auth/status`, {
+					credentials: 'include'
+				});
+				const data = await response.json();
+				setIsLoggedIn(data.success && data.authenticated);
+			} catch (error) {
+				console.error('Error checking auth status:', error);
+				setIsLoggedIn(false);
+			}
 		};
 		
 		checkLoginStatus();
 		
 		// Listen for storage changes (when user logs in/out in another tab)
-		window.addEventListener('storage', checkLoginStatus);
+		const handleStorageChange = () => {
+			checkLoginStatus();
+		};
+		window.addEventListener('storage', handleStorageChange);
 		
 		return () => {
-			window.removeEventListener('storage', checkLoginStatus);
+			window.removeEventListener('storage', handleStorageChange);
 		};
 	}, []);
 
 	const handleLoginClick = async (e: React.MouseEvent) => {
 		e.preventDefault();
 		try {
+			// Generate PKCE
 			const codeVerifier = generateCodeVerifier();
 			const codeChallenge = await generateCodeChallenge(codeVerifier);
+			// Generate state and nonce
+			const state = generateSecureRandom();
+			const nonce = generateSecureRandom();
+			// Persist for callback validation
 			sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+			sessionStorage.setItem('oauth_state', state);
+			sessionStorage.setItem('oauth_nonce', nonce);
 
+			// Build Cognito Hosted UI URL directly
+			const redirectUri = `${window.location.origin}/auth/callback`;
+			
 			const params = new URLSearchParams({
+				client_id: config.cognito.clientId,
+				response_type: 'code',
+				scope: 'openid email profile',
+				redirect_uri: redirectUri,
 				code_challenge: codeChallenge,
-				code_challenge_method: 'S256'
+				code_challenge_method: 'S256',
+				state,
+				nonce
 			});
 
-			console.log(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
-			const resp = await fetch(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
-			const data = await resp.json();
-			if (data?.success && data?.loginUrl) {
-				window.location.href = data.loginUrl;
-			} else {
-				console.error('Failed to get login URL:', data);
-			}
+			const loginUrl = `https://${config.cognito.domain}/oauth2/authorize?${params.toString()}`;
+			window.location.href = loginUrl;
 		} catch (error) {
 			console.error('Error initiating login:', error);
 		}
@@ -70,18 +101,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 		e.preventDefault();
 		try {
 			const resp = await fetch(`${config.apiBaseUrl}/auth/logout`, {
-				method: 'POST'
+				method: 'POST',
+				credentials: 'include'
 			});
 			const data = await resp.json();
 			
-			// Clear local storage
-			localStorage.removeItem('accessToken');
-			localStorage.removeItem('idToken');
-			localStorage.removeItem('refreshToken');
+			// Clear session storage
 			sessionStorage.removeItem('pkce_code_verifier');
+			sessionStorage.removeItem('oauth_state');
+			sessionStorage.removeItem('oauth_nonce');
 			
 			// Update login state immediately
 			setIsLoggedIn(false);
+			
+			// Trigger storage event for other components
+			window.dispatchEvent(new Event('storage'));
 			
 			if (data?.success && data?.logoutUrl) {
 				// Redirect to Cognito logout to clear the session
@@ -94,11 +128,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 			}
 		} catch (error) {
 			console.error('Error during logout:', error);
-			// Clear tokens anyway and update state
-			localStorage.removeItem('accessToken');
-			localStorage.removeItem('idToken');
-			localStorage.removeItem('refreshToken');
+			// Clear session storage anyway and update state
 			sessionStorage.removeItem('pkce_code_verifier');
+			sessionStorage.removeItem('oauth_state');
+			sessionStorage.removeItem('oauth_nonce');
 			setIsLoggedIn(false);
 			window.location.reload();
 		}

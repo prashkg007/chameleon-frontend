@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import config from '../config';
 
@@ -9,7 +9,11 @@ export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const hasHandledRef = useRef(false);
+
   useEffect(() => {
+    if (hasHandledRef.current) return; // guard against double-invoke in React 18 StrictMode
+    hasHandledRef.current = true;
     const handleCallback = async () => {
       try {
         // Debug: log all URL parameters
@@ -50,6 +54,8 @@ export default function AuthCallback() {
           }
           
           // Exchange code for tokens via backend (more secure)
+          const redirectUri = `${window.location.origin}/auth/callback`;
+          
           const response = await fetch(`${config.apiBaseUrl}/auth/exchange-token`, {
             method: 'POST',
             headers: {
@@ -59,7 +65,7 @@ export default function AuthCallback() {
             body: JSON.stringify({
               code,
               code_verifier: codeVerifier,
-              redirect_uri: window.location.origin + '/auth/callback'
+              redirect_uri: redirectUri
             })
           });
 
@@ -77,9 +83,12 @@ export default function AuthCallback() {
             // Trigger storage event for other components to update auth state
             window.dispatchEvent(new Event('storage'));
             
-            // Clean URL and redirect
-            window.history.replaceState({}, document.title, window.location.pathname);
-            navigate('/');
+            // Small delay to ensure cookie is set before navigation
+            setTimeout(() => {
+              // Clean URL and redirect
+              window.history.replaceState({}, document.title, window.location.pathname);
+              navigate('/');
+            }, 100);
             return;
           } else {
             throw new Error(data.message || 'Token exchange failed');

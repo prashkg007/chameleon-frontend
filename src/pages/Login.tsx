@@ -49,11 +49,13 @@ export default function Login() {
         sessionStorage.setItem('oauth_nonce', nonce);
 
         // Build OAuth URL directly
+        const redirectUri = `${window.location.origin}/auth/callback`;
+        
         const params = new URLSearchParams({
           client_id: config.cognito.clientId,
           response_type: 'code',
           scope: 'openid email profile',
-          redirect_uri: config.cognito.redirectUri,
+          redirect_uri: redirectUri,
           code_challenge: codeChallenge,
           code_challenge_method: 'S256',
           state,
@@ -61,8 +63,6 @@ export default function Login() {
         });
 
         const loginUrl = `https://${config.cognito.domain}/oauth2/authorize?${params.toString()}`;
-        console.log('Redirecting to OAuth URL:', loginUrl);
-        
         window.location.href = loginUrl;
       } catch (e: any) {
         setError(e?.message || 'Failed to start login');

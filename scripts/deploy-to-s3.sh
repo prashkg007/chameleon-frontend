@@ -11,7 +11,11 @@ ENVIRONMENT=${2:-"latest"}
 AWS_REGION="ap-south-1"
 
 # Build S3 path
-S3_PATH="s3://$BUCKET_NAME/$ENVIRONMENT/"
+if [ "$ENVIRONMENT" = "latest" ]; then
+    S3_PATH="s3://$BUCKET_NAME/latest/"
+else
+    S3_PATH="s3://$BUCKET_NAME/$ENVIRONMENT/"
+fi
 
 echo "🚀 Deploying Chameleon Frontend to S3..."
 echo "Bucket: $BUCKET_NAME"
@@ -65,7 +69,11 @@ aws s3api put-bucket-website \
     }' 2>/dev/null || echo "Website configuration may already exist"
 
 # Get website URL
-WEBSITE_URL="http://$BUCKET_NAME.s3-website-$AWS_REGION.amazonaws.com/$ENVIRONMENT"
+if [ "$ENVIRONMENT" = "latest" ]; then
+    WEBSITE_URL="http://$BUCKET_NAME.s3-website-$AWS_REGION.amazonaws.com/"
+else
+    WEBSITE_URL="http://$BUCKET_NAME.s3-website-$AWS_REGION.amazonaws.com/$ENVIRONMENT"
+fi
 
 echo ""
 echo "✅ Deployment completed successfully!"

@@ -74,8 +74,8 @@ jobs:
           aws s3api put-bucket-website \
             --bucket ${{ env.S3_BUCKET }} \
             --website-configuration '{
-              "IndexDocument": {"Suffix": "index.html"},
-              "ErrorDocument": {"Suffix": "404.html"}
+              "IndexDocument": {"Suffix": "latest/index.html"},
+              "ErrorDocument": {"Suffix": "latest/404.html"}
             }' || echo "Bucket website configuration may already exist"
 
       - name: Release Summary
@@ -84,4 +84,4 @@ jobs:
           echo "Successfully deployed SPA to S3:" >> $GITHUB_STEP_SUMMARY
           echo "- **Versioned**: s3://${{ env.S3_BUCKET }}/releases/${{ steps.version.outputs.version }}/" >> $GITHUB_STEP_SUMMARY
           echo "- **Latest**: s3://${{ env.S3_BUCKET }}/latest/" >> $GITHUB_STEP_SUMMARY
-          echo "- **Website URL**: http://${{ env.S3_BUCKET }}.s3-website-${{ env.AWS_REGION }}.amazonaws.com/latest/" >> $GITHUB_STEP_SUMMARY
+          echo "- **Website URL**: http://${{ env.S3_BUCKET }}.s3-website-${{ env.AWS_REGION }}.amazonaws.com/" >> $GITHUB_STEP_SUMMARY
