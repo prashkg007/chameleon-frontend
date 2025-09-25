@@ -34,7 +34,6 @@ export default function Login() {
           code_challenge: codeChallenge,
           code_challenge_method: 'S256'
         });
-
         // Ask backend for hosted UI login URL with PKCE applied
         const resp = await fetch(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
         const data = await resp.json();

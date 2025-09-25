@@ -53,6 +53,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 				code_challenge_method: 'S256'
 			});
 
+			console.log(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
 			const resp = await fetch(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
 			const data = await resp.json();
 			if (data?.success && data?.loginUrl) {
