@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import config from '../config';
 
@@ -9,7 +9,11 @@ export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const hasHandledRef = useRef(false);
+
   useEffect(() => {
+    if (hasHandledRef.current) return; // guard against double-invoke in React 18 StrictMode
+    hasHandledRef.current = true;
     const handleCallback = async () => {
       try {
         // Debug: log all URL parameters
@@ -49,25 +53,33 @@ export default function AuthCallback() {
             return;
           }
           
-          // Exchange code for tokens via backend (more secure)
-          const response = await fetch(`${config.apiBaseUrl}/auth/exchange-token`, {
+          // Exchange code for tokens directly with Cognito
+          const redirectUri = `${window.location.origin}/auth/callback`;
+          
+          const tokenResponse = await fetch(`https://${config.cognito.domain}/oauth2/token`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
             },
-            credentials: 'include', // Include cookies for session management
-            body: JSON.stringify({
+            body: new URLSearchParams({
+              grant_type: 'authorization_code',
+              client_id: config.cognito.clientId,
               code,
-              code_verifier: codeVerifier,
-              redirect_uri: window.location.origin + '/auth/callback'
+              code_verifier: codeVerifier || '',
+              redirect_uri: redirectUri
             })
           });
 
-          const data = await response.json();
+          const data = await tokenResponse.json();
           
-          if (data.success) {
-            // Tokens are now stored as HTTP-only cookies, no need to handle them in localStorage
-            console.log('Authentication successful, tokens stored as secure cookies');
+          if (data.access_token) {
+            // Store JWT tokens securely in localStorage
+            localStorage.setItem('accessToken', data.access_token);
+            localStorage.setItem('idToken', data.id_token);
+            if (data.refresh_token) {
+              localStorage.setItem('refreshToken', data.refresh_token);
+            }
+            console.log('Authentication successful, tokens stored securely');
             
             // Clean up session storage
             sessionStorage.removeItem('pkce_code_verifier');
@@ -76,13 +88,12 @@ export default function AuthCallback() {
             
             // Trigger storage event for other components to update auth state
             window.dispatchEvent(new Event('storage'));
-            
-            // Clean URL and redirect
-            window.history.replaceState({}, document.title, window.location.pathname);
+
+            // Redirect to dashboard
             navigate('/');
             return;
           } else {
-            throw new Error(data.message || 'Token exchange failed');
+            throw new Error(data.error_description || 'Token exchange failed');
           }
         }
 

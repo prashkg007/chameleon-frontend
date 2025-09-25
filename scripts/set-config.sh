@@ -6,7 +6,7 @@
 set -e
 
 ENVIRONMENT=${1:-"development"}
-API_URL=${2:-"http://localhost:3000/api"}
+API_URL=${2:-"http://localhost:3001/api"}
 
 echo "🔧 Setting configuration for $ENVIRONMENT environment..."
 echo "API URL: $API_URL"

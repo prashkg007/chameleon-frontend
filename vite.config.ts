@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
 				}
 			}
 		},
-		base: './',
+		base: '/',
 		// Define environment variables
 		define: {
 			__APP_ENV__: JSON.stringify(env.VITE_APP_ENV || mode)

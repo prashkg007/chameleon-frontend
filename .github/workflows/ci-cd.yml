@@ -51,37 +51,95 @@ jobs:
       - name: Prepare SPA Files
         run: |
           cp ./dist/index.html ./dist/404.html
-          echo "/*    /index.html   200" > ./dist/_redirects
+          # Create CloudFront-compatible redirect rules for SPA
+          cat > ./dist/_redirects << 'EOF'
+          /*    /index.html   200
+          EOF
 
       - name: Upload to S3 (Versioned)
         run: |
           echo "Uploading to S3 versioned location..."
           aws s3 sync ./dist s3://${{ env.S3_BUCKET }}/releases/${{ steps.version.outputs.version }}/ \
             --delete \
-            --cache-control "max-age=31536000" \
+            --cache-control "max-age=0" \
             --metadata-directive REPLACE
 
       - name: Upload to S3 (Latest)
         run: |
           echo "Uploading to S3 latest location..."
-          aws s3 sync ./dist s3://${{ env.S3_BUCKET }}/latest/ \
-            --delete \
-            --cache-control "max-age=300" \
+          # First, clean up old files in root (but preserve releases folder)
+          aws s3 rm s3://${{ env.S3_BUCKET }}/ --recursive --exclude "releases/*"
+          # Then upload new files
+          aws s3 sync ./dist s3://${{ env.S3_BUCKET }}/ \
+            --cache-control "max-age=0" \
             --metadata-directive REPLACE
 
-      - name: Ensure S3 Website Configuration
+      - name: Create/Update CloudFront Distribution
         run: |
-          aws s3api put-bucket-website \
-            --bucket ${{ env.S3_BUCKET }} \
-            --website-configuration '{
-              "IndexDocument": {"Suffix": "index.html"},
-              "ErrorDocument": {"Suffix": "404.html"}
-            }' || echo "Bucket website configuration may already exist"
+          # Check if distribution exists
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='chameleon-frontend'].Id" --output text)
+          
+          if [ -z "$DISTRIBUTION_ID" ]; then
+            echo "Creating CloudFront distribution..."
+            DISTRIBUTION_ID=$(aws cloudfront create-distribution --distribution-config '{
+              "CallerReference": "chameleon-frontend-'$(date +%s)'",
+              "Comment": "chameleon-frontend",
+              "DefaultRootObject": "index.html",
+              "Origins": {
+                "Quantity": 1,
+                "Items": [{
+                  "Id": "S3-chameleon-frontend-website",
+                  "DomainName": "chameleon-frontend-website.s3.ap-south-1.amazonaws.com",
+                  "S3OriginConfig": {
+                    "OriginAccessIdentity": ""
+                  }
+                }]
+              },
+              "DefaultCacheBehavior": {
+                "TargetOriginId": "S3-chameleon-frontend-website",
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "TrustedSigners": {"Enabled": false, "Quantity": 0},
+                "ForwardedValues": {
+                  "QueryString": false,
+                  "Cookies": {"Forward": "none"}
+                },
+                "MinTTL": 0,
+                "DefaultTTL": 0,
+                "MaxTTL": 0
+              },
+              "CustomErrorResponses": {
+                "Quantity": 2,
+                "Items": [
+                  {"ErrorCode": 403, "ResponsePagePath": "/index.html", "ResponseCode": "200", "ErrorCachingMinTTL": 0},
+                  {"ErrorCode": 404, "ResponsePagePath": "/index.html", "ResponseCode": "200", "ErrorCachingMinTTL": 0}
+                ]
+              },
+              "Enabled": true,
+              "PriceClass": "PriceClass_100"
+            }' --query 'Distribution.Id' --output text)
+          fi
+          
+          echo "Distribution ID: $DISTRIBUTION_ID"
+          echo "CLOUDFRONT_DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_ENV
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          echo "🔄 Invalidating CloudFront cache..."
+          aws cloudfront create-invalidation \
+            --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text
+
+      - name: Get CloudFront URL
+        run: |
+          CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution --id $CLOUDFRONT_DISTRIBUTION_ID --query 'Distribution.DomainName' --output text)
+          echo "CLOUDFRONT_URL=https://$CLOUDFRONT_DOMAIN/" >> $GITHUB_ENV
 
       - name: Release Summary
         run: |
           echo "## 🚀 Chameleon Frontend Release ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "Successfully deployed SPA to S3:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Versioned**: s3://${{ env.S3_BUCKET }}/releases/${{ steps.version.outputs.version }}/" >> $GITHUB_STEP_SUMMARY
-          echo "- **Latest**: s3://${{ env.S3_BUCKET }}/latest/" >> $GITHUB_STEP_SUMMARY
-          echo "- **Website URL**: http://${{ env.S3_BUCKET }}.s3-website-${{ env.AWS_REGION }}.amazonaws.com/latest/" >> $GITHUB_STEP_SUMMARY
+          echo "Successfully deployed SPA:" >> $GITHUB_STEP_SUMMARY
+          echo "- **S3**: s3://${{ env.S3_BUCKET }}/" >> $GITHUB_STEP_SUMMARY
+          echo "- **HTTPS URL**: $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cache**: Invalidated" >> $GITHUB_STEP_SUMMARY

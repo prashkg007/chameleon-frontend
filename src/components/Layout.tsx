@@ -12,6 +12,15 @@ function generateCodeVerifier(): string {
     .replace(/=/g, '');
 }
 
+function generateSecureRandom(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode.apply(null, Array.from(array)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
 async function generateCodeChallenge(verifier: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
@@ -24,43 +33,91 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
 	const [isLoggedIn, setIsLoggedIn] = useState(false);
+	const [userName, setUserName] = useState<string>('');
 
 	useEffect(() => {
-		// Check login status on mount and when localStorage changes
+		// Check login status via JWT tokens
 		const checkLoginStatus = () => {
-			setIsLoggedIn(!!localStorage.getItem('accessToken'));
+			try {
+				const accessToken = localStorage.getItem('accessToken');
+				const idToken = localStorage.getItem('idToken');
+				
+				if (accessToken && idToken) {
+					// Decode JWT to get user info
+					const tokenParts = idToken.split('.');
+					if (tokenParts.length !== 3) {
+						setIsLoggedIn(false);
+						setUserName('');
+						return;
+					}
+					const payload = JSON.parse(atob(tokenParts[1]));
+					const isExpired = payload.exp * 1000 < Date.now();
+					
+					if (!isExpired) {
+						setIsLoggedIn(true);
+						setUserName(payload.name || payload.email || 'User');
+					} else {
+						// Token expired, clear storage
+						localStorage.removeItem('accessToken');
+						localStorage.removeItem('idToken');
+						localStorage.removeItem('refreshToken');
+						setIsLoggedIn(false);
+						setUserName('');
+					}
+				} else {
+					setIsLoggedIn(false);
+					setUserName('');
+				}
+			} catch (error) {
+				console.error('Error checking auth status:', error);
+				setIsLoggedIn(false);
+				setUserName('');
+			}
 		};
 		
 		checkLoginStatus();
 		
 		// Listen for storage changes (when user logs in/out in another tab)
-		window.addEventListener('storage', checkLoginStatus);
+		const handleStorageChange = () => {
+			checkLoginStatus();
+		};
+		window.addEventListener('storage', handleStorageChange);
 		
 		return () => {
-			window.removeEventListener('storage', checkLoginStatus);
+			window.removeEventListener('storage', handleStorageChange);
 		};
 	}, []);
 
 	const handleLoginClick = async (e: React.MouseEvent) => {
 		e.preventDefault();
 		try {
+			// Generate PKCE
 			const codeVerifier = generateCodeVerifier();
 			const codeChallenge = await generateCodeChallenge(codeVerifier);
+			// Generate state and nonce
+			const state = generateSecureRandom();
+			const nonce = generateSecureRandom();
+			// Persist for callback validation
 			sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+			sessionStorage.setItem('oauth_state', state);
+			sessionStorage.setItem('oauth_nonce', nonce);
 
+			// Build Cognito Hosted UI URL directly
+			const redirectUri = `${window.location.origin}/auth/callback`;
+			
 			const params = new URLSearchParams({
+				client_id: config.cognito.clientId,
+				response_type: 'code',
+				scope: 'openid email profile',
+				redirect_uri: redirectUri,
 				code_challenge: codeChallenge,
-				code_challenge_method: 'S256'
+				code_challenge_method: 'S256',
+				state,
+				nonce
 			});
 
-			console.log(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
-			const resp = await fetch(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
-			const data = await resp.json();
-			if (data?.success && data?.loginUrl) {
-				window.location.href = data.loginUrl;
-			} else {
-				console.error('Failed to get login URL:', data);
-			}
+			const loginUrl = `https://${config.cognito.domain}/oauth2/authorize?${params.toString()}`;
+			window.location.href = loginUrl;
 		} catch (error) {
 			console.error('Error initiating login:', error);
 		}
@@ -69,38 +126,38 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 	const handleLogoutClick = async (e: React.MouseEvent) => {
 		e.preventDefault();
 		try {
-			const resp = await fetch(`${config.apiBaseUrl}/auth/logout`, {
-				method: 'POST'
-			});
-			const data = await resp.json();
-			
 			// Clear local storage
 			localStorage.removeItem('accessToken');
 			localStorage.removeItem('idToken');
 			localStorage.removeItem('refreshToken');
+			
+			// Clear session storage
 			sessionStorage.removeItem('pkce_code_verifier');
+			sessionStorage.removeItem('oauth_state');
+			sessionStorage.removeItem('oauth_nonce');
 			
 			// Update login state immediately
 			setIsLoggedIn(false);
+			setUserName('');
 			
-			if (data?.success && data?.logoutUrl) {
-				// Redirect to Cognito logout to clear the session
-				console.log('Redirecting to Cognito logout:', data.logoutUrl);
-				window.location.href = data.logoutUrl;
-			} else {
-				// If logout URL fails, just reload to clear local state
-				console.log('Logout URL failed, just reloading page');
-				window.location.reload();
-			}
+			// Trigger storage event for other components
+			window.dispatchEvent(new Event('storage'));
+			
+			// Redirect to Cognito logout URL
+			const logoutUrl = `https://${config.cognito.domain}/logout?client_id=${config.cognito.clientId}&logout_uri=${encodeURIComponent(window.location.origin)}`;
+			window.location.href = logoutUrl;
 		} catch (error) {
 			console.error('Error during logout:', error);
-			// Clear tokens anyway and update state
+			// Clear local storage anyway and update state
 			localStorage.removeItem('accessToken');
 			localStorage.removeItem('idToken');
 			localStorage.removeItem('refreshToken');
 			sessionStorage.removeItem('pkce_code_verifier');
+			sessionStorage.removeItem('oauth_state');
+			sessionStorage.removeItem('oauth_nonce');
 			setIsLoggedIn(false);
-			window.location.reload();
+			setUserName('');
+			window.location.href = '/';
 		}
 	};
 
@@ -113,7 +170,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 					<nav className="nav">
 						<NavLink to="/pricing">Pricing</NavLink>
 						{isLoggedIn ? (
-							<a href="#" onClick={handleLogoutClick}>Logout</a>
+							<>
+								<span style={{ marginRight: '16px', color: '#666' }}>Hello, {userName}</span>
+								<a href="#" onClick={handleLogoutClick}>Logout</a>
+							</>
 						) : (
 							<a href="#" onClick={handleLoginClick}>Login</a>
 						)}

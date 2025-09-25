@@ -11,7 +11,11 @@ ENVIRONMENT=${2:-"latest"}
 AWS_REGION="ap-south-1"
 
 # Build S3 path
-S3_PATH="s3://$BUCKET_NAME/$ENVIRONMENT/"
+if [ "$ENVIRONMENT" = "latest" ]; then
+    S3_PATH="s3://$BUCKET_NAME/"
+else
+    S3_PATH="s3://$BUCKET_NAME/$ENVIRONMENT/"
+fi
 
 echo "🚀 Deploying Chameleon Frontend to S3..."
 echo "Bucket: $BUCKET_NAME"
@@ -50,8 +54,12 @@ echo "/*    /index.html   200" > dist/_redirects
 
 # Deploy to S3
 echo "📤 Uploading to S3..."
+if [ "$ENVIRONMENT" = "latest" ]; then
+    # For latest deployment, clean root but preserve releases folder
+    echo "Cleaning root directory (preserving releases folder)..."
+    aws s3 rm "$S3_PATH" --recursive --exclude "releases/*" 2>/dev/null || true
+fi
 aws s3 sync dist/ "$S3_PATH" \
-    --delete \
     --cache-control "max-age=31536000" \
     --metadata-directive REPLACE
 
@@ -65,7 +73,11 @@ aws s3api put-bucket-website \
     }' 2>/dev/null || echo "Website configuration may already exist"
 
 # Get website URL
-WEBSITE_URL="http://$BUCKET_NAME.s3-website-$AWS_REGION.amazonaws.com/$ENVIRONMENT"
+if [ "$ENVIRONMENT" = "latest" ]; then
+    WEBSITE_URL="http://$BUCKET_NAME.s3-website-$AWS_REGION.amazonaws.com/"
+else
+    WEBSITE_URL="http://$BUCKET_NAME.s3-website-$AWS_REGION.amazonaws.com/$ENVIRONMENT"
+fi
 
 echo ""
 echo "✅ Deployment completed successfully!"

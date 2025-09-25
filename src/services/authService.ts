@@ -1,16 +1,34 @@
 class AuthService {
-  handleOAuthCallback() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    const refresh = urlParams.get('refresh');
-
-    if (token && refresh) {
-      localStorage.setItem('accessToken', token);
-      localStorage.setItem('refreshToken', refresh);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return { accessToken: token, refreshToken: refresh };
+  isAuthenticated(): boolean {
+    const accessToken = localStorage.getItem('accessToken');
+    const idToken = localStorage.getItem('idToken');
+    
+    if (!accessToken || !idToken) return false;
+    
+    try {
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      return payload.exp * 1000 > Date.now();
+    } catch {
+      return false;
     }
-    return null;
+  }
+
+  getAccessToken(): string | null {
+    return localStorage.getItem('accessToken');
+  }
+
+  getIdToken(): string | null {
+    return localStorage.getItem('idToken');
+  }
+
+  getRefreshToken(): string | null {
+    return localStorage.getItem('refreshToken');
+  }
+
+  clearTokens(): void {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('idToken');
+    localStorage.removeItem('refreshToken');
   }
 }
 
