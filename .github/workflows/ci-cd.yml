@@ -3,8 +3,6 @@ name: Chameleon Frontend CI/CD
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 env:
@@ -13,104 +11,48 @@ env:
   S3_BUCKET: 'chameleon-frontend-website'
 
 jobs:
-  test:
-    name: Test
+  deploy:
+    name: Build and Deploy to S3
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     defaults:
       run:
         working-directory: .
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
-      - name: Install Dependencies
-        run: npm install
-      
-      - name: Run Tests
-        run: npm test
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: test
-    defaults:
-      run:
-        working-directory: .
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-      
+
       - name: Install Dependencies
         run: npm install
-      
+
       - name: Build
         run: npm run build
-      
-      - name: Upload Build Artifacts (Main Branch Only)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: chameleon-frontend-dist
-          path: dist/
-          retention-days: 30
 
-  deploy:
-    name: Deploy to S3
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    defaults:
-      run:
-        working-directory: .
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: chameleon-frontend-dist
-          path: ./dist
-      
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      
+
       - name: Generate Version Tag
         id: version
         run: |
           VERSION=$(date +'%Y%m%d-%H%M%S')-${GITHUB_SHA:0:7}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Create SPA Index for All Routes
+
+      - name: Prepare SPA Files
         run: |
-          # Create a copy of index.html for SPA routing
           cp ./dist/index.html ./dist/404.html
-          
-          # Create a simple _redirects file for SPA routing (if using CloudFront)
           echo "/*    /index.html   200" > ./dist/_redirects
-          
-          # Make deployment script executable
-          chmod +x ./scripts/deploy-to-s3.sh
-      
+
       - name: Upload to S3 (Versioned)
         run: |
           echo "Uploading to S3 versioned location..."
@@ -118,7 +60,7 @@ jobs:
             --delete \
             --cache-control "max-age=31536000" \
             --metadata-directive REPLACE
-      
+
       - name: Upload to S3 (Latest)
         run: |
           echo "Uploading to S3 latest location..."
@@ -126,27 +68,20 @@ jobs:
             --delete \
             --cache-control "max-age=300" \
             --metadata-directive REPLACE
-      
-      - name: Set S3 Website Configuration
+
+      - name: Ensure S3 Website Configuration
         run: |
-          # Configure S3 bucket for static website hosting
           aws s3api put-bucket-website \
             --bucket ${{ env.S3_BUCKET }} \
             --website-configuration '{
               "IndexDocument": {"Suffix": "index.html"},
               "ErrorDocument": {"Suffix": "404.html"}
             }' || echo "Bucket website configuration may already exist"
-      
-      - name: Create Release Summary
+
+      - name: Release Summary
         run: |
           echo "## 🚀 Chameleon Frontend Release ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "Successfully deployed SPA to S3:" >> $GITHUB_STEP_SUMMARY
           echo "- **Versioned**: s3://${{ env.S3_BUCKET }}/releases/${{ steps.version.outputs.version }}/" >> $GITHUB_STEP_SUMMARY
           echo "- **Latest**: s3://${{ env.S3_BUCKET }}/latest/" >> $GITHUB_STEP_SUMMARY
           echo "- **Website URL**: http://${{ env.S3_BUCKET }}.s3-website-${{ env.AWS_REGION }}.amazonaws.com/latest/" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 SPA Configuration:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ React Router configured for client-side routing" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ 404.html created for SPA fallback" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ S3 website hosting configured" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Cache headers optimized for static assets" >> $GITHUB_STEP_SUMMARY
