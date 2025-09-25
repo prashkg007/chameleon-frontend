@@ -10,6 +10,15 @@ function generateCodeVerifier(): string {
     .replace(/=/g, '');
 }
 
+function generateSecureRandom(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode.apply(null, Array.from(array)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
 async function generateCodeChallenge(verifier: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
@@ -26,21 +35,35 @@ export default function Login() {
   useEffect(() => {
     const goToHostedUi = async () => {
       try {
+        // Generate PKCE parameters
         const codeVerifier = generateCodeVerifier();
         const codeChallenge = await generateCodeChallenge(codeVerifier);
+        
+        // Generate state and nonce for security
+        const state = generateSecureRandom();
+        const nonce = generateSecureRandom();
+        
+        // Store values for later validation (state validation happens on frontend)
         sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+        sessionStorage.setItem('oauth_state', state);
+        sessionStorage.setItem('oauth_nonce', nonce);
 
+        // Build OAuth URL directly
         const params = new URLSearchParams({
+          client_id: config.cognito.clientId,
+          response_type: 'code',
+          scope: 'openid email profile',
+          redirect_uri: config.cognito.redirectUri,
           code_challenge: codeChallenge,
-          code_challenge_method: 'S256'
+          code_challenge_method: 'S256',
+          state,
+          nonce
         });
-        // Ask backend for hosted UI login URL with PKCE applied
-        const resp = await fetch(`${config.apiBaseUrl}/auth/login-url?${params.toString()}`);
-        const data = await resp.json();
-        if (!data?.success || !data?.loginUrl) {
-          throw new Error('Failed to get login URL');
-        }
-        window.location.href = data.loginUrl;
+
+        const loginUrl = `https://${config.cognito.domain}/oauth2/authorize?${params.toString()}`;
+        console.log('Redirecting to OAuth URL:', loginUrl);
+        
+        window.location.href = loginUrl;
       } catch (e: any) {
         setError(e?.message || 'Failed to start login');
       }

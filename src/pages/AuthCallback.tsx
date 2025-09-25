@@ -17,6 +17,7 @@ export default function AuthCallback() {
         console.log('Full URL:', window.location.href);
         
         const code = searchParams.get('code');
+        const returnedState = searchParams.get('state');
         const error = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
         
@@ -27,9 +28,26 @@ export default function AuthCallback() {
         }
         
         if (code) {
-          // Get PKCE code verifier from session storage
+          // Get stored values from session storage
           const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+          const storedState = sessionStorage.getItem('oauth_state');
+          const storedNonce = sessionStorage.getItem('oauth_nonce');
+          
           console.log('Code verifier found:', !!codeVerifier);
+          console.log('State validation:', { returnedState, storedState, match: returnedState === storedState });
+          
+          // Validate state parameter to prevent CSRF attacks
+          if (!returnedState || !storedState || returnedState !== storedState) {
+            console.error('State validation failed');
+            setError('Authentication failed: Invalid state parameter. This may be a security issue.');
+            return;
+          }
+          
+          if (!storedNonce) {
+            console.error('Nonce not found in session storage');
+            setError('Authentication failed: Missing nonce. Please try logging in again.');
+            return;
+          }
           
           // Exchange code for tokens via backend (more secure)
           const response = await fetch(`${config.apiBaseUrl}/auth/exchange-token`, {
@@ -37,6 +55,7 @@ export default function AuthCallback() {
             headers: {
               'Content-Type': 'application/json',
             },
+            credentials: 'include', // Include cookies for session management
             body: JSON.stringify({
               code,
               code_verifier: codeVerifier,
@@ -46,18 +65,16 @@ export default function AuthCallback() {
 
           const data = await response.json();
           
-          if (data.success && data.access_token) {
-            // Store tokens from exchange
-            localStorage.setItem('accessToken', data.access_token);
-            localStorage.setItem('idToken', data.id_token);
-            if (data.refresh_token) {
-              localStorage.setItem('refreshToken', data.refresh_token);
-            }
+          if (data.success) {
+            // Tokens are now stored as HTTP-only cookies, no need to handle them in localStorage
+            console.log('Authentication successful, tokens stored as secure cookies');
             
-            // Clean up PKCE code verifier
+            // Clean up session storage
             sessionStorage.removeItem('pkce_code_verifier');
+            sessionStorage.removeItem('oauth_state');
+            sessionStorage.removeItem('oauth_nonce');
             
-            // Trigger storage event for other components to update
+            // Trigger storage event for other components to update auth state
             window.dispatchEvent(new Event('storage'));
             
             // Clean URL and redirect
