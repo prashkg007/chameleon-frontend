@@ -1,0 +1,36 @@
+{
+  "name": "chameleon-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 5174",
+    "test": "vitest",
+    "build:spa": "vite build --mode production",
+    "build:dev": "vite build --mode development",
+    "deploy:s3": "bash scripts/deploy-to-s3.sh chameleon-frontend-website latest",
+    "config:dev": "bash scripts/set-config.sh development http://localhost:3000/api",
+    "config:prod": "bash scripts/set-config.sh production https://your-backend-api.com/api",
+    "analyze": "npm run build && npx vite-bundle-analyzer dist",
+    "test:build": "npm run build:spa && npm run preview"
+  },
+  "dependencies": {
+    "axios": "^1.12.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "terser": "^5.44.0",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.0"
+  }
+}
