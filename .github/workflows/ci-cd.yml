@@ -1,0 +1,153 @@
+name: Chameleon Frontend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  AWS_REGION: 'ap-south-1'
+  S3_BUCKET: 'chameleon-frontend-website'
+
+jobs:
+  deploy:
+    name: Build and Deploy to S3
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Generate Version Tag
+        id: version
+        run: |
+          VERSION=$(date +'%Y%m%d-%H%M%S')-${GITHUB_SHA:0:7}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Prepare SPA Files
+        run: |
+          cp ./dist/index.html ./dist/404.html
+          # Create CloudFront-compatible redirect rules for SPA
+          cat > ./dist/_redirects << 'EOF'
+          /*    /index.html   200
+          EOF
+
+      - name: Upload to S3 (Versioned)
+        run: |
+          echo "Uploading to S3 versioned location..."
+          aws s3 sync ./dist s3://${{ env.S3_BUCKET }}/releases/${{ steps.version.outputs.version }}/ \
+            --delete \
+            --cache-control "max-age=0" \
+            --metadata-directive REPLACE
+
+      - name: Upload to S3 (Latest)
+        run: |
+          echo "Uploading to S3 latest location..."
+          # First, clean up old files in root (but preserve releases folder)
+          aws s3 rm s3://${{ env.S3_BUCKET }}/ --recursive --exclude "releases/*"
+          # Then upload new files
+          aws s3 sync ./dist s3://${{ env.S3_BUCKET }}/ \
+            --cache-control "max-age=0" \
+            --metadata-directive REPLACE
+
+      - name: Create/Update CloudFront Distribution
+        run: |
+          # Check if distribution exists
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='chameleon-frontend'].Id" --output text)
+          
+          if [ -z "$DISTRIBUTION_ID" ]; then
+            echo "Creating CloudFront distribution..."
+            DISTRIBUTION_ID=$(aws cloudfront create-distribution --distribution-config '{
+              "CallerReference": "chameleon-frontend-'$(date +%s)'",
+              "Comment": "chameleon-frontend",
+              "DefaultRootObject": "index.html",
+              "Origins": {
+                "Quantity": 1,
+                "Items": [{
+                  "Id": "S3-chameleon-frontend-website",
+                  "DomainName": "chameleon-frontend-website.s3.ap-south-1.amazonaws.com",
+                  "S3OriginConfig": {
+                    "OriginAccessIdentity": ""
+                  }
+                }]
+              },
+              "DefaultCacheBehavior": {
+                "TargetOriginId": "S3-chameleon-frontend-website",
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "TrustedSigners": {"Enabled": false, "Quantity": 0},
+                "ForwardedValues": {
+                  "QueryString": false,
+                  "Cookies": {"Forward": "none"}
+                },
+                "MinTTL": 0,
+                "DefaultTTL": 0,
+                "MaxTTL": 0
+              },
+              "CustomErrorResponses": {
+                "Quantity": 2,
+                "Items": [
+                  {
+                    "ErrorCode": 403,
+                    "ResponsePagePath": "/index.html",
+                    "ResponseCode": "200",
+                    "ErrorCachingMinTTL": 300
+                  },
+                  {
+                    "ErrorCode": 404,
+                    "ResponsePagePath": "/index.html", 
+                    "ResponseCode": "200",
+                    "ErrorCachingMinTTL": 300
+                  }
+                ]
+              },
+              "Enabled": true
+            }' --query 'Distribution.Id' --output text)
+            echo "Created CloudFront distribution: $DISTRIBUTION_ID"
+          else
+            echo "Using existing CloudFront distribution: $DISTRIBUTION_ID"
+          fi
+          
+          # Invalidate CloudFront cache
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
+
+      - name: Configure S3 Website Hosting
+        run: |
+          aws s3api put-bucket-website \
+            --bucket ${{ env.S3_BUCKET }} \
+            --website-configuration '{
+              "IndexDocument": {"Suffix": "index.html"},
+              "ErrorDocument": {"Suffix": "404.html"}
+            }'
+
+      - name: Summary
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 S3 Website: http://${{ env.S3_BUCKET }}.s3-website-${{ env.AWS_REGION }}.amazonaws.com"
+          echo "📁 S3 Bucket: s3://${{ env.S3_BUCKET }}"
+          echo "🏷️ Version: ${{ steps.version.outputs.version }}"

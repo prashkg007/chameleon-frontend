@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
-import { ArrowLeft, User, Mail, CreditCard, Settings, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, User, CreditCard, Settings, AlertTriangle } from 'lucide-react';
+
+interface UserType {
+  id: string;
+  name: string;
+  email: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  subscriptionStatus: 'active' | 'inactive' | 'cancelled';
+}
 
 interface UserProfileProps {
-  user: any;
+  user: UserType | null;
   onBack: () => void;
-  onUpdateUser: (user: any) => void;
+  onUpdateUser: (user: UserType) => void;
 }
 
 const UserProfile: React.FC<UserProfileProps> = ({ user, onBack, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const handleUnsubscribe = () => {
-    const updatedUser = { ...user, subscriptionStatus: 'cancelled' };
-    onUpdateUser(updatedUser);
-    setShowCancelModal(false);
-  };
+  // const handleUnsubscribe = () => {
+  //   const updatedUser = { ...user, subscriptionStatus: 'cancelled' };
+  //   onUpdateUser(updatedUser);
+  //   setShowCancelModal(false);
+  // };
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },

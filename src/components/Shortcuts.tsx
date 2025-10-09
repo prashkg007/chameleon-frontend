@@ -1,50 +1,34 @@
 import React from 'react';
-import { Keyboard, Command, MousePointer, Eye } from 'lucide-react';
+import { Keyboard, Command, Eye } from 'lucide-react';
 
 const Shortcuts: React.FC = () => {
   const shortcuts = [
     {
-      category: 'Quick Actions',
-      icon: Keyboard,
+      category: 'Core Actions',
+      icon: Command,
       color: 'from-blue-500 to-cyan-500',
       shortcuts: [
-        { key: 'Ctrl + Shift + A', action: 'Activate StealthBuddy', description: 'Toggle the AI assistant on/off' },
-        { key: 'Ctrl + Shift + H', action: 'Hide/Show Interface', description: 'Instantly hide the interface' },
-        { key: 'Ctrl + Shift + R', action: 'Quick Response', description: 'Get instant AI response' },
-        { key: 'Ctrl + Shift + C', action: 'Copy Last Response', description: 'Copy AI response to clipboard' }
+        { key: 'Ctrl + H', action: 'Capture Screenshot', description: 'Take a screenshot for analysis' },
+        { key: 'Ctrl + Enter', action: 'Analyze Screenshots', description: 'Send screenshots to backend for processing' },
+        { key: 'Ctrl + G', action: 'Reset Sequence', description: 'Clear current session and start fresh' }
       ]
     },
     {
-      category: 'AI Controls',
-      icon: Command,
+      category: 'Navigation',
+      icon: Keyboard,
       color: 'from-purple-500 to-pink-500',
       shortcuts: [
-        { key: 'Ctrl + Shift + 1', action: 'Technical Questions', description: 'Switch to technical mode' },
-        { key: 'Ctrl + Shift + 2', action: 'Behavioral Questions', description: 'Switch to behavioral mode' },
-        { key: 'Ctrl + Shift + 3', action: 'Code Review Mode', description: 'Activate code analysis' },
-        { key: 'Ctrl + Shift + S', action: 'Smart Suggestions', description: 'Get contextual suggestions' }
+        { key: 'Ctrl + Shift + ←', action: 'Previous Page', description: 'Navigate to previous result' },
+        { key: 'Ctrl + Shift + →', action: 'Next Page', description: 'Navigate to next result' }
       ]
     },
     {
-      category: 'Stealth Features',
+      category: 'Window Management',
       icon: Eye,
       color: 'from-green-500 to-emerald-500',
       shortcuts: [
-        { key: 'Ctrl + Shift + I', action: 'Invisible Mode', description: 'Complete invisibility toggle' },
-        { key: 'Ctrl + Shift + M', action: 'Minimize All', description: 'Hide all StealthBuddy windows' },
-        { key: 'Ctrl + Shift + P', action: 'Panic Mode', description: 'Emergency hide everything' },
-        { key: 'Ctrl + Shift + T', action: 'Transparency', description: 'Adjust window transparency' }
-      ]
-    },
-    {
-      category: 'Mouse Controls',
-      icon: MousePointer,
-      color: 'from-orange-500 to-red-500',
-      shortcuts: [
-        { key: 'Double Click Corner', action: 'Quick Access', description: 'Access AI in screen corner' },
-        { key: 'Right Click + Hold', action: 'Context Menu', description: 'Show stealth context menu' },
-        { key: 'Middle Click', action: 'Screen Capture', description: 'Capture question for AI' },
-        { key: 'Scroll + Ctrl', action: 'Zoom Interface', description: 'Adjust interface size' }
+        { key: 'Ctrl + B', action: 'Show/Hide Window', description: 'Toggle window visibility' },
+        { key: 'Ctrl + ←/→/↑/↓', action: 'Move Window', description: 'Reposition the application window' }
       ]
     }
   ];
@@ -57,11 +41,11 @@ const Shortcuts: React.FC = () => {
             Keyboard <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Shortcuts</span>
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Master these shortcuts to use StealthBuddy like a pro. Lightning-fast access to all features without detection.
+            Master these shortcuts to use Chameleon efficiently. Quick access to all core features.
           </p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {shortcuts.map((category, categoryIndex) => (
             <div
               key={categoryIndex}
@@ -110,21 +94,21 @@ const Shortcuts: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-start space-x-3">
                   <div className="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <p className="text-gray-300">Customize all shortcuts in settings to match your workflow</p>
+                  <p className="text-gray-300">Use Ctrl+H to quickly capture screenshots</p>
                 </div>
                 <div className="flex items-start space-x-3">
                   <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <p className="text-gray-300">Practice shortcuts before interviews for muscle memory</p>
+                  <p className="text-gray-300">Ctrl+Enter sends your screenshots for analysis</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex items-start space-x-3">
                   <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <p className="text-gray-300">Use panic mode if you need to hide everything instantly</p>
+                  <p className="text-gray-300">Ctrl+G resets your current session</p>
                 </div>
                 <div className="flex items-start space-x-3">
                   <div className="w-2 h-2 bg-orange-400 rounded-full mt-2 flex-shrink-0"></div>
-                  <p className="text-gray-300">Mouse controls work even when keyboard shortcuts are disabled</p>
+                  <p className="text-gray-300">Use Ctrl+B to quickly hide/show the window</p>
                 </div>
               </div>
             </div>

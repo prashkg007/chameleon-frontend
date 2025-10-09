@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
@@ -6,8 +7,9 @@ import Shortcuts from './components/Shortcuts';
 import Features from './components/Features';
 import Pricing from './components/Pricing';
 import Footer from './components/Footer';
-import AuthModal from './components/AuthModal';
 import UserProfile from './components/UserProfile';
+import AuthCallback from './pages/AuthCallback';
+import authService from './services/authService';
 
 interface User {
   id: string;
@@ -17,30 +19,43 @@ interface User {
   subscriptionStatus: 'active' | 'inactive' | 'cancelled';
 }
 
-function App() {
+// Home component with template design
+function HomePage() {
   const [user, setUser] = useState<User | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const handleLogin = (userData: User) => {
-    setUser(userData);
-    setShowAuthModal(false);
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      const userInfo = authService.getUserInfo();
+      if (userInfo) {
+        setUser({
+          id: '1',
+          name: userInfo.name,
+          email: userInfo.email,
+          plan: 'free',
+          subscriptionStatus: 'active'
+        });
+      }
+    }
+  }, []);
+
+  const handleLogin = () => {
+    authService.redirectToCognito();
   };
 
   const handleLogout = () => {
-    setUser(null);
-    setShowProfile(false);
+    authService.logout();
   };
 
   const handleSignup = () => {
-    setShowAuthModal(true);
+    authService.redirectToCognito();
   };
 
   return (
     <div className="min-h-screen bg-gray-900">
       <Header 
         user={user} 
-        onLogin={() => setShowAuthModal(true)}
+        onLogin={handleLogin}
         onProfile={() => setShowProfile(true)}
         onLogout={handleLogout}
       />
@@ -62,13 +77,19 @@ function App() {
         />
       )}
 
-      {showAuthModal && (
-        <AuthModal 
-          onClose={() => setShowAuthModal(false)}
-          onLogin={handleLogin}
-        />
-      )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
   );
 }
 
