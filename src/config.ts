@@ -7,6 +7,11 @@ const config = {
     domain: import.meta.env.VITE_COGNITO_DOMAIN || 'ap-south-16aqpga9c3.auth.ap-south-1.amazoncognito.com',
     clientId: import.meta.env.VITE_COGNITO_CLIENT_ID || '20c4860ta5pmnmmn8nle519oth',
     redirectUri: import.meta.env.VITE_COGNITO_REDIRECT_URI || 'https://d1540vq6lr6647.cloudfront.net/auth/callback'
+  },
+
+  // API configuration
+  api: {
+    baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://32s82kvzrc.execute-api.ap-south-1.amazonaws.com'
   }
 };
 

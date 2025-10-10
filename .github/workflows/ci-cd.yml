@@ -29,6 +29,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Create Environment File
+        run: |
+          cat > .env << EOF
+          VITE_RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
+          VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}
+          EOF
+
       - name: Install Dependencies
         run: npm install
 

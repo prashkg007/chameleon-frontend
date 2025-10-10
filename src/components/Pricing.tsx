@@ -2,57 +2,47 @@ import React from 'react';
 import { Check, Star } from 'lucide-react';
 
 interface PricingProps {
-  onSelectPlan: () => void;
+  onSelectPlan: (amount: number, credits: number | 'unlimited', planType: 'one-time' | 'subscription') => void;
 }
 
 const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
   const plans = [
     {
-      name: "Free",
-      price: "0",
+      name: "Starter Pack",
+      price: "5",
       description: "Perfect for trying out StealthBuddy",
       features: [
-        "5 AI responses per day",
-        "Basic question recognition",
+        "10 AI analysis credits",
+        "Advanced question recognition",
         "Windows, macOS, Linux support",
+        "Code completion & debugging",
         "Community support"
       ],
       popular: false,
-      buttonText: "Start Free",
-      buttonStyle: "border border-gray-600 hover:border-gray-500 text-white"
+      buttonText: "Buy Now",
+      buttonStyle: "border border-gray-600 hover:border-gray-500 text-white",
+      amount: 5,
+      credits: 10,
+      planType: 'one-time' as const
     },
     {
-      name: "Pro",
-      price: "29",
-      description: "Best for regular interview preparation",
+      name: "Unlimited Plan",
+      price: "39",
+      description: "Best for serious interview preparation",
       features: [
         "Unlimited AI responses",
         "Advanced context understanding",
         "Code completion & debugging",
         "Interview recording analysis",
         "Priority support",
-        "Custom response templates"
+        "Cancel anytime"
       ],
       popular: true,
-      buttonText: "Start Pro Trial",
-      buttonStyle: "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-    },
-    {
-      name: "Enterprise",
-      price: "99",
-      description: "For teams and organizations",
-      features: [
-        "Everything in Pro",
-        "Team management dashboard",
-        "Custom AI training",
-        "Advanced analytics",
-        "SSO integration",
-        "Dedicated support manager",
-        "Custom integrations"
-      ],
-      popular: false,
-      buttonText: "Contact Sales",
-      buttonStyle: "border border-gray-600 hover:border-gray-500 text-white"
+      buttonText: "Subscribe Now",
+      buttonStyle: "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white",
+      amount: 39,
+      credits: 'unlimited' as const,
+      planType: 'subscription' as const
     }
   ];
 
@@ -68,7 +58,7 @@ const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
           </p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {plans.map((plan, index) => (
             <div
               key={index}
@@ -106,7 +96,7 @@ const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
               </ul>
               
               <button
-                onClick={onSelectPlan}
+                onClick={() => onSelectPlan(plan.amount, plan.credits, plan.planType)}
                 className={`w-full py-4 px-6 rounded-2xl font-semibold text-lg transition-all transform hover:scale-105 ${plan.buttonStyle}`}
               >
                 {plan.buttonText}
@@ -117,7 +107,7 @@ const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
         
         <div className="text-center mt-12">
           <p className="text-gray-400">
-            All plans include a 14-day free trial. No credit card required for Free plan.
+            Starter Pack: One-time purchase. Unlimited Plan: Monthly subscription, cancel anytime.
           </p>
         </div>
       </div>

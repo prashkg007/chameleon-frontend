@@ -7,6 +7,7 @@ interface User {
   email: string;
   plan: 'free' | 'pro' | 'enterprise';
   subscriptionStatus: 'active' | 'inactive' | 'cancelled';
+  credits: number;
 }
 
 interface HeaderProps {
@@ -55,15 +56,28 @@ const Header: React.FC<HeaderProps> = ({ user, onLogin, onProfile, onLogout }) =
                 >
                   <User className="h-4 w-4" />
                   <span className="hidden sm:inline">{user.name}</span>
+                  <span className="hidden sm:inline text-gray-400">•</span>
+                  <span className="text-blue-400 font-medium">{user.credits} credits</span>
                   <ChevronDown className={`h-4 w-4 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {dropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-1">
+                  <div className="absolute right-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-1">
                     <div className="px-4 py-2 border-b border-gray-700">
-                      <p className="text-sm font-medium text-white">{user.name}</p>
-                      <p className="text-xs text-gray-400">{user.email}</p>
+                      <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                      <p className="text-xs text-gray-400 break-all">{user.email}</p>
+                      <p className="text-xs text-blue-400 mt-1">Credits: {user.credits}</p>
                     </div>
+                    <button
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        onProfile();
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
+                    >
+                      <User className="h-4 w-4" />
+                      <span>Profile</span>
+                    </button>
                     <button
                       onClick={() => {
                         setDropdownOpen(false);

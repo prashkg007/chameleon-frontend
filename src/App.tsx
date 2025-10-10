@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import UserProfile from './components/UserProfile';
 import AuthCallback from './pages/AuthCallback';
 import authService from './services/authService';
+import paymentService from './services/paymentService';
 
 interface User {
   id: string;
@@ -17,6 +18,7 @@ interface User {
   email: string;
   plan: 'free' | 'pro' | 'enterprise';
   subscriptionStatus: 'active' | 'inactive' | 'cancelled';
+  credits: number;
 }
 
 // Home component with template design
@@ -25,18 +27,35 @@ function HomePage() {
   const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
-    if (authService.isAuthenticated()) {
-      const userInfo = authService.getUserInfo();
-      if (userInfo) {
-        setUser({
-          id: '1',
-          name: userInfo.name,
-          email: userInfo.email,
-          plan: 'free',
-          subscriptionStatus: 'active'
-        });
+    const loadUser = async () => {
+      if (authService.isAuthenticated()) {
+        const userInfo = authService.getUserInfo();
+        if (userInfo) {
+          try {
+            const credits = await paymentService.fetchCredits();
+            setUser({
+              id: '1',
+              name: userInfo.name,
+              email: userInfo.email,
+              plan: 'free',
+              subscriptionStatus: 'active',
+              credits,
+            });
+          } catch (error) {
+            console.error('Failed to fetch credits:', error);
+            setUser({
+              id: '1',
+              name: userInfo.name,
+              email: userInfo.email,
+              plan: 'free',
+              subscriptionStatus: 'active',
+              credits: 0,
+            });
+          }
+        }
       }
-    }
+    };
+    loadUser();
   }, []);
 
   const handleLogin = () => {
@@ -49,6 +68,43 @@ function HomePage() {
 
   const handleSignup = () => {
     authService.redirectToCognito();
+  };
+
+  const handleSelectPlan = async (amount: number, credits: number | 'unlimited', planType: 'one-time' | 'subscription') => {
+    if (!authService.isAuthenticated()) {
+      authService.redirectToCognito();
+      return;
+    }
+
+    // For subscription plans, we'll use -1 as credits indicator
+    const creditsValue = credits === 'unlimited' ? -1 : credits;
+    
+    await paymentService.initRazorpayCheckout(
+      amount,
+      creditsValue,
+      async () => {
+        // Success - reload user data
+        const userInfo = authService.getUserInfo();
+        if (userInfo) {
+          try {
+            const newCredits = await paymentService.fetchCredits();
+            setUser({
+              id: '1',
+              name: userInfo.name,
+              email: userInfo.email,
+              plan: planType === 'subscription' ? 'pro' : 'free',
+              subscriptionStatus: 'active',
+              credits: newCredits,
+            });
+          } catch (error) {
+            console.error('Failed to refresh credits:', error);
+          }
+        }
+      },
+      (error) => {
+        console.error('Payment failed:', error);
+      }
+    );
   };
 
   return (
@@ -66,7 +122,7 @@ function HomePage() {
           <HowItWorks />
           <Shortcuts />
           <Features />
-          <Pricing onSelectPlan={handleSignup} />
+          <Pricing onSelectPlan={handleSelectPlan} />
           <Footer />
         </>
       ) : (
