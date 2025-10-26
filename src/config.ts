@@ -12,6 +12,13 @@ const config = {
   // API configuration
   api: {
     baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://32s82kvzrc.execute-api.ap-south-1.amazonaws.com'
+  },
+
+  // Download URLs (public CloudFront)
+  downloads: {
+    macArm64: 'https://stealthbuddy.ai/downloads/macos/stealthbuddy-mac-arm64.dmg',
+    macIntel: 'https://stealthbuddy.ai/downloads/macos/stealthbuddy-mac-intel.dmg',
+    win: 'https://stealthbuddy.ai/downloads/windows/stealthbuddy-windows.exe'
   }
 };
 

@@ -20,6 +20,23 @@ function AuthCallback() {
         const returnedState = searchParams.get('state');
         const error = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
+
+        // Detect origin from state (electron vs web). Missing/invalid => treat as web
+        let origin: 'electron' | 'web' = 'web';
+        const decodeState = (raw: string) => {
+          try {
+            let b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+            while (b64.length % 4) b64 += '=';
+            const json = atob(b64);
+            return JSON.parse(json);
+          } catch {
+            return null;
+          }
+        };
+        if (returnedState) {
+          const parsed = decodeState(returnedState);
+          if (parsed?.origin === 'electron') origin = 'electron';
+        }
         
         if (error) {
           console.error('OAuth error:', error, errorDescription);
@@ -27,6 +44,31 @@ function AuthCallback() {
           return;
         }
         
+        if (origin === 'electron') {
+          // Build deep link with all params (query + hash if any)
+          const url = new URL(window.location.href);
+          const params = new URLSearchParams(url.search);
+          if (!params.size && url.hash.startsWith('#')) {
+            const hashParams = new URLSearchParams(url.hash.slice(1));
+            hashParams.forEach((v, k) => params.set(k, v));
+          }
+          const deep = `chameleon://callback?${params.toString()}`;
+
+          const tryClose = () => {
+            try { window.close(); } catch {}
+            try { (window.open('', '_self') as Window | null)?.close?.(); } catch {}
+          };
+          // Trigger deep link and attempt close with short retries
+          window.location.replace(deep);
+          setTimeout(tryClose, 400);
+          const id = setInterval(tryClose, 300);
+          setTimeout(() => clearInterval(id), 3000);
+
+          // Render minimal fallback UI by stopping further processing
+          setLoading(false);
+          return;
+        }
+
         if (code) {
           // Get stored values from session storage
           const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
@@ -142,7 +184,40 @@ function AuthCallback() {
     );
   }
 
-  return null;
+  // Minimal fallback UI after electron-origin deep link: offer manual actions
+  return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-gray-800/40 backdrop-blur-xl p-8 rounded-3xl border border-gray-700/50 text-center">
+        <h1 className="text-2xl font-bold text-white mb-2">Opening Chameleon…</h1>
+        <p className="text-gray-300 mb-6">You can close this tab.</p>
+        <div className="space-y-3">
+          <button
+            onClick={() => {
+              const url = new URL(window.location.href);
+              const params = new URLSearchParams(url.search);
+              if (!params.size && url.hash.startsWith('#')) {
+                const hashParams = new URLSearchParams(url.hash.slice(1));
+                hashParams.forEach((v, k) => params.set(k, v));
+              }
+              window.location.href = `chameleon://callback?${params.toString()}`;
+            }}
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-300"
+          >
+            Open in App
+          </button>
+          <button
+            onClick={() => {
+              try { window.close(); } catch {}
+              try { (window.open('', '_self') as Window | null)?.close?.(); } catch {}
+            }}
+            className="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-300"
+          >
+            Close Tab
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default AuthCallback;

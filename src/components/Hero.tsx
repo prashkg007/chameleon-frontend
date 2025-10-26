@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Eye, Shield, Zap, Download as DownloadIcon, Apple, Monitor, Smartphone, Play } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowRight, Eye, Shield, Zap, Download as DownloadIcon, Apple, Monitor, Play, ChevronDown } from 'lucide-react';
+import config from '../config';
 
 interface HeroProps {
   onGetStarted: () => void;
@@ -7,48 +8,54 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   const [userOS, setUserOS] = useState<string>('');
+  const [macChip, setMacChip] = useState<'arm64' | 'intel'>('arm64');
+  const [macMenuOpen, setMacMenuOpen] = useState(false);
+  const macControlRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const detectOS = () => {
       const userAgent = window.navigator.userAgent;
       if (userAgent.includes('Win')) return 'Windows';
       if (userAgent.includes('Mac')) return 'macOS';
-      if (userAgent.includes('Linux')) return 'Linux';
       return 'Unknown';
     };
     setUserOS(detectOS());
   }, []);
 
+
+  useEffect(() => {
+    if (!macMenuOpen) return;
+    
+    const onClick = (e: MouseEvent) => {
+      if (macControlRef.current && !macControlRef.current.contains(e.target as Node)) {
+        setMacMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [macMenuOpen]);
+
   const downloads = [
-    {
-      os: 'Windows',
-      icon: Monitor,
-      version: 'v2.1.0',
-      size: '45.2 MB',
-      url: '/downloads/stealthbuddy-windows.exe',
-      recommended: userOS === 'Windows'
-    },
     {
       os: 'macOS',
       icon: Apple,
-      version: 'v2.1.0',
-      size: '38.7 MB',
-      url: '/downloads/stealthbuddy-macos.dmg',
-      recommended: userOS === 'macOS'
+      version: '',
+      size: '',
+      url: macChip === 'arm64' ? config.downloads.macArm64 : config.downloads.macIntel,
+      recommended: userOS === 'macOS',
+      hasDropdown: true
     },
     {
-      os: 'Linux',
-      icon: Smartphone,
-      version: 'v2.1.0',
-      size: '41.3 MB',
-      url: '/downloads/stealthbuddy-linux.AppImage',
-      recommended: userOS === 'Linux'
+      os: 'Windows',
+      icon: Monitor,
+      version: '',
+      size: '',
+      url: config.downloads.win,
+      recommended: userOS === 'Windows',
+      hasDropdown: false
     }
   ];
-
-  const handleDownload = (url: string, os: string) => {
-    alert(`Download would start for ${os}. File: ${url}`);
-  };
 
   return (
     <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
@@ -96,15 +103,15 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
         </div>
 
         {/* Download Section - Prominently Featured */}
-        <div className="mb-20">
+        <div className="mb-20 relative">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
               Download <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">StealthBuddy</span>
             </h2>
-            <p className="text-lg text-gray-300">Available for all major operating systems</p>
+            <p className="text-lg text-gray-300">Available for macOS and Windows</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto" key={macChip}>
             {downloads.map((download, index) => (
               <div
                 key={index}
@@ -112,7 +119,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                   download.recommended 
                     ? 'border-blue-500 shadow-2xl shadow-blue-500/20 bg-gradient-to-br from-blue-500/10 to-purple-500/10' 
                     : 'border-gray-700/50 hover:border-gray-600'
-                }`}
+                } ${download.hasDropdown && macMenuOpen ? 'z-[1000]' : ''}`}
               >
                 {download.recommended && (
                   <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
@@ -130,46 +137,98 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                   </div>
                   
                   <h3 className="text-2xl font-bold text-white mb-2">{download.os}</h3>
-                  <p className="text-gray-400 mb-6">{download.version} • {download.size}</p>
+                  <p className="text-gray-400 mb-6">&nbsp;</p>
                   
-                  <button
-                    onClick={() => handleDownload(download.url, download.os)}
-                    className={`w-full py-4 px-6 rounded-2xl font-semibold text-lg transition-all transform hover:scale-105 flex items-center justify-center space-x-3 ${
-                      download.recommended
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl shadow-blue-500/25'
-                        : 'border-2 border-gray-600 hover:border-gray-500 text-white hover:bg-gray-700/30'
-                    }`}
-                  >
-                    <DownloadIcon className="h-5 w-5" />
-                    <span>Download</span>
-                  </button>
+                  {download.hasDropdown ? (
+                    <div ref={macControlRef} className="relative w-full">
+                      <div className={`flex w-full items-stretch rounded-2xl overflow-hidden ${
+                        download.recommended
+                          ? 'border-2 border-blue-500'
+                          : 'border-2 border-gray-600'
+                      }`}>
+                        <a
+                          href={download.url || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex-1 py-4 px-6 font-semibold text-lg flex items-center justify-center space-x-3 text-center ${
+                            download.recommended
+                              ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white'
+                              : 'text-white hover:bg-gray-700/30'
+                          }`}
+                        >
+                          <DownloadIcon className="h-5 w-5" />
+                          <span>{`Download (${macChip === 'arm64' ? 'arm64' : 'x64'})`}</span>
+                        </a>
+                        <button
+                          type="button"
+                          aria-label="Choose macOS chip"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMacMenuOpen((o) => !o);
+                          }}
+                          className={`px-3 w-auto min-w-[3rem] gap-1 flex items-center justify-center border-l cursor-pointer transition-all duration-200 ${
+                            download.recommended
+                              ? 'bg-gradient-to-r from-blue-700 to-purple-700 text-white border-blue-500 hover:from-blue-800 hover:to-purple-800'
+                              : 'bg-gray-700/30 text-white border-gray-600 hover:bg-gray-700/50'
+                          } ${macMenuOpen ? 'ring-2 ring-blue-400/50' : ''}`}
+                        >
+                          <span className="text-sm opacity-90">{macChip === 'arm64' ? 'arm64' : 'x64'}</span>
+                          <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${macMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+                      
+                      {/* Simple dropdown positioned directly below */}
+                      {macMenuOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 rounded-xl border-2 border-gray-500 shadow-2xl">
+                          <button
+                            type="button"
+                            onClick={(e) => { 
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setMacChip('arm64'); 
+                              setMacMenuOpen(false); 
+                            }}
+                            className={`w-full text-left px-6 py-4 rounded-t-xl transition-colors cursor-pointer text-lg ${macChip === 'arm64' ? 'bg-gray-700 text-white' : 'text-gray-200 hover:bg-gray-700/50'}`}
+                          >
+                            Apple Silicon (M1/M2/M3)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { 
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setMacChip('intel'); 
+                              setMacMenuOpen(false); 
+                            }}
+                            className={`w-full text-left px-6 py-4 rounded-b-xl transition-colors cursor-pointer text-lg ${macChip === 'intel' ? 'bg-gray-700 text-white' : 'text-gray-200 hover:bg-gray-700/50'}`}
+                          >
+                            Intel Chip
+                          </button>
+                        </div>
+                      )}
+                      
+                    </div>
+                  ) : (
+                    <a
+                      href={download.url || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`w-full py-4 px-6 rounded-2xl font-semibold text-lg transition-all transform hover:scale-105 flex items-center justify-center space-x-3 text-center ${
+                        download.recommended
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl shadow-blue-500/25'
+                          : 'border-2 border-gray-600 hover:border-gray-500 text-white hover:bg-gray-700/30'
+                      }`}
+                    >
+                      <DownloadIcon className="h-5 w-5" />
+                      <span>Download</span>
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
           </div>
           
-          <div className="text-center mt-12">
-            <div className="bg-gray-800/30 backdrop-blur-xl p-8 rounded-3xl border border-gray-700/50 max-w-3xl mx-auto">
-              <h4 className="text-xl font-semibold text-white mb-6">System Requirements</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-300">
-                <div className="space-y-2">
-                  <p className="font-semibold text-white">Windows</p>
-                  <p className="text-sm">Windows 10 or later</p>
-                  <p className="text-sm">4GB RAM minimum</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="font-semibold text-white">macOS</p>
-                  <p className="text-sm">macOS 10.14 or later</p>
-                  <p className="text-sm">4GB RAM minimum</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="font-semibold text-white">Linux</p>
-                  <p className="text-sm">Ubuntu 18.04+ or equivalent</p>
-                  <p className="text-sm">4GB RAM minimum</p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
         
         {/* Key Benefits */}
@@ -193,6 +252,9 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
           </div>
         </div>
       </div>
+
+
+
     </section>
   );
 };
