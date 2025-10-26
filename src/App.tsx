@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
-import Hero from './components/Hero';
-import HowItWorks from './components/HowItWorks';
-import Shortcuts from './components/Shortcuts';
-import Features from './components/Features';
-import Pricing from './components/Pricing';
-import Footer from './components/Footer';
+const Hero = React.lazy(() => import('./components/Hero'));
+const HowItWorks = React.lazy(() => import('./components/HowItWorks'));
+const Shortcuts = React.lazy(() => import('./components/Shortcuts'));
+const Features = React.lazy(() => import('./components/Features'));
+const Pricing = React.lazy(() => import('./components/Pricing'));
+const Footer = React.lazy(() => import('./components/Footer'));
 import UserProfile from './components/UserProfile';
-import AuthCallback from './pages/AuthCallback';
+const AuthCallback = React.lazy(() => import('./pages/AuthCallback'));
 import authService from './services/authService';
 import paymentService from './services/paymentService';
 
@@ -117,14 +117,14 @@ function HomePage() {
       />
       
       {!showProfile ? (
-        <>
+        <Suspense fallback={<div className="text-gray-300 p-8">Loading...</div>}>
           <Hero onGetStarted={handleSignup} />
           <HowItWorks />
           <Shortcuts />
           <Features />
           <Pricing onSelectPlan={handleSelectPlan} />
           <Footer />
-        </>
+        </Suspense>
       ) : (
         <UserProfile 
           user={user} 
@@ -142,7 +142,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/auth/callback" element={<Suspense fallback={<div className="text-gray-300 p-8">Loading...</div>}><AuthCallback /></Suspense>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

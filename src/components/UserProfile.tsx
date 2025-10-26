@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, User, CreditCard, Settings, AlertTriangle, Coins } from 'lucide-react';
+import { ArrowLeft, User, CreditCard, Settings, AlertTriangle, Coins, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import paymentService from '../services/paymentService';
 
 interface UserType {
@@ -18,43 +19,28 @@ interface UserProfileProps {
 }
 
 const UserProfile: React.FC<UserProfileProps> = ({ user, onBack, onUpdateUser }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [paymentMessage, setPaymentMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingAmount, setProcessingAmount] = useState<number | null>(null);
 
   const handleBuyCredits = async (amount: number, credits: number) => {
-    setIsProcessingPayment(true);
-    setPaymentMessage(null);
-
-    await paymentService.initRazorpayCheckout(
-      amount,
-      credits,
-      async () => {
-        // Success handler
-        setIsProcessingPayment(false);
-        setPaymentMessage({ type: 'success', text: `Successfully purchased ${credits} credits!` });
-        
-        // Refresh credits
-        try {
-          const newCredits = await paymentService.fetchCredits();
-          if (user) {
-            onUpdateUser({ ...user, credits: newCredits });
-          }
-        } catch (error) {
-          console.error('Failed to refresh credits:', error);
-        }
-
-        // Clear message after 5 seconds
-        setTimeout(() => setPaymentMessage(null), 5000);
-      },
-      (error) => {
-        // Failure handler
-        setIsProcessingPayment(false);
-        setPaymentMessage({ type: 'error', text: error });
-        setTimeout(() => setPaymentMessage(null), 5000);
-      }
-    );
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    setProcessingAmount(amount);
+    
+    try {
+      const planName = credits === 50 ? 'Value Pack' : 'Starter Pack';
+      await paymentService.createOrderAndRedirect(amount, credits, planName);
+    } catch (error) {
+      console.error('Payment initialization failed:', error);
+      // Error will be handled by the parent component
+    } finally {
+      setIsProcessing(false);
+      setProcessingAmount(null);
+    }
   };
 
   // const handleUnsubscribe = () => {
@@ -193,10 +179,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onBack, onUpdateUser })
                       </div>
                       <button
                         onClick={() => handleBuyCredits(5, 10)}
-                        disabled={isProcessingPayment}
-                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors"
+                        disabled={isProcessing}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
                       >
-                        {isProcessingPayment ? 'Processing...' : 'Buy Now'}
+                        {isProcessing && processingAmount === 5 ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Processing...</span>
+                          </>
+                        ) : (
+                          <span>Buy Now</span>
+                        )}
                       </button>
                     </div>
 
@@ -216,10 +209,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onBack, onUpdateUser })
                       </div>
                       <button
                         onClick={() => handleBuyCredits(39, -1)}
-                        disabled={isProcessingPayment}
-                        className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors"
+                        disabled={isProcessing}
+                        className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
                       >
-                        {isProcessingPayment ? 'Processing...' : 'Subscribe'}
+                        {isProcessing && processingAmount === 39 ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Processing...</span>
+                          </>
+                        ) : (
+                          <span>Subscribe</span>
+                        )}
                       </button>
                     </div>
                   </div>
